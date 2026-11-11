@@ -13,9 +13,9 @@ return new class extends Migration {
         Schema::create('feedback', function (Blueprint $table) {
             $table->id();
             $table->foreignId('id_usuario')->constrained('usuarios')->onDelete('cascade');
-            $table->foreignId('id_servico')->constrained('servicos')->onDelete('cascade');
+            $table->foreignId('id_servico')->constrained('servicos')->onDelete('cascade');  
             $table->string('assunto');
-            $table->string('comentario');
+            $table->text('comentario');
             $table->enum('categoria', ['elogio', 'reclamacao']);
             $table->enum('status', ['pendente', 'em analise', 'resolvido'])->default('pendente');
             $table->enum('prioridade', ['baixa', 'media', 'alta']);
