@@ -53,7 +53,7 @@ class FeedbackController extends Controller
         // Busca o serviço pelo model.
         $servico = Servico::findOrFail($validatedData['id_servico']);
 
-        // Verifica se o serviço pertence à empresa do cliente.
+       
         if (
             $usuario->tipo !== 'admin' &&
             $servico->id_empresa != $usuario->id_empresa
@@ -63,7 +63,7 @@ class FeedbackController extends Controller
             ], 403);
         }
 
-        // Define automaticamente o usuário do feedback.
+        
         if ($usuario->tipo !== 'admin') {
             $validatedData['id_usuario'] = $usuario->id;
         }
