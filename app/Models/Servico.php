@@ -8,6 +8,7 @@ class Servico extends Model
 {
     protected $fillable = [
         'nome',
+        'id_empresa',
         'descricao',
         'status'
     ];

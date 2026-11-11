@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('servicos', function (Blueprint $table) {
             $table->id();
             $table->string('nome');
+            $table->foreignId('id_empresa')->constrained('empresas')->onDelete('cascade');
             $table->text('descricao');
             $table->enum('status', ['ativo', 'inativo']);
             $table->timestamps();
