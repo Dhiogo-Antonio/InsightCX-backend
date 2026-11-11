@@ -29,7 +29,31 @@ class FeedbackController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $validatedData = $request->validate([
+            'id_usuario' => 'required|exists:usuarios,id',
+            'id_servico' => 'required|exists:servicos,id',
+            'assunto' => 'required|string|max:255',
+            'comentario' => 'required|string',
+            'categoria' => 'required|in:elogio,reclamacao',
+            'prioridade' => 'required|in:baixa,media,alta',
+            'status' => 'required|in:pendente,em analise,resolvido',
+        ]);
+
+        try {
+            $feedback = Feedback::create($validatedData);
+
+            return response()->json([
+                'message' => 'Feedback criado com sucesso!',
+                'feedback' => $feedback
+            ], 201);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'message' => 'Falha ao criar feedback',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

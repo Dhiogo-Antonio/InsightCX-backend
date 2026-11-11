@@ -29,7 +29,27 @@ class EmpresaController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $validatedData = $request->validate([
+            'nome' => 'required|string|max:255',
+            'cnpj' => 'required|string|max:20|unique:empresas',
+            'email' => 'required|string|email|max:255|unique:empresas',
+        ]);
+
+        try {
+            $empresa = Empresa::create($validatedData);
+
+            return response()->json([
+                'message' => 'Empresa criada com sucesso!',
+                'empresa' => $empresa
+            ], 201);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'message' => 'Falha ao criar empresa',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
