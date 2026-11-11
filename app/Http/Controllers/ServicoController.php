@@ -31,6 +31,7 @@ class ServicoController extends Controller
     {
         $validatedData = $request->validate([
             'nome' => 'required|string|max:255',
+            'id_empresa' => 'required|exists:empresas,id',
             'descricao' => 'required|string',
             'status' => 'required|in:ativo,inativo',
         ]);
