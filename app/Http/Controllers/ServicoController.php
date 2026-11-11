@@ -39,6 +39,9 @@ class ServicoController extends Controller
      */
     public function store(Request $request)
     {
+
+        $usuario = $request->user();
+        
         $validatedData = $request->validate([
             'nome' => 'required|string|max:255',
             'id_empresa' => 'required|exists:empresas,id',
@@ -47,6 +50,8 @@ class ServicoController extends Controller
         ]);
 
         try {
+
+            $validatedData['id_empresa'] = $usuario->user()->id_empresa;
             $servico = Servico::create($validatedData);
 
             return response()->json([
