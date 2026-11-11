@@ -46,7 +46,6 @@ class FeedbackController extends Controller
                 'message' => 'Feedback criado com sucesso!',
                 'feedback' => $feedback
             ], 201);
-
         } catch (\Exception $e) {
 
             return response()->json([
@@ -77,14 +76,50 @@ class FeedbackController extends Controller
      */
     public function update(Request $request, Feedback $feedback)
     {
-        //
+        $validatedData = $request->validate([
+            'id_usuario' => 'required|exists:usuarios,id',
+            'id_servico' => 'required|exists:servicos,id',
+            'assunto' => 'required|string|max:255',
+            'comentario' => 'required|string',
+            'categoria' => 'required|in:elogio,reclamacao',
+            'prioridade' => 'required|in:baixa,media,alta',
+            'status' => 'required|in:pendente,em analise,resolvido',
+        ]);
+
+        try {
+            $feedback->update($validatedData);
+
+            return response()->json([
+                'message' => 'Feedback atualizado com sucesso!',
+                'feedback' => $feedback
+            ], 200);
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'message' => 'Falha ao atualizar feedback',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
      * Remove the specified resource from storage.
      */
     public function destroy(Feedback $feedback)
-    {
-        //
+{
+    try {
+        $feedback->delete();
+
+        return response()->json([
+            'message' => 'Feedback excluído com sucesso!'
+        ], 200);
+
+    } catch (\Exception $e) {
+
+        return response()->json([
+            'message' => 'Falha ao excluir feedback',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 }

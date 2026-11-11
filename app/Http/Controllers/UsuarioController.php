@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\DB;
 use App\Models\Usuario;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+
 
 class UsuarioController extends Controller
 {
@@ -35,22 +38,22 @@ class UsuarioController extends Controller
             'senha' => 'required|string|max:255',
             'telefone' => 'required|string|max:30',
             'tipo' => 'required|in:admin,cliente',
-            'empresa' => 'required|string|max:255',
+            'id_empresa' => 'required|exists:empresas,id',
         ]);
 
         try {
+           $validatedData['senha'] = Hash::make($validatedData['senha']);
             $usuario = Usuario::create($validatedData);
 
             return response()->json([
                 'message' => 'Usuário criado com sucesso!',
                 'usuario' => $usuario
             ], 201);
-
         } catch (\Exception $e) {
 
             return response()->json([
-            'message' => 'Falha ao criar usuário',
-            'error' => $e->getMessage()
+                'message' => 'Falha ao criar usuário',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -76,7 +79,38 @@ class UsuarioController extends Controller
      */
     public function update(Request $request, Usuario $usuario)
     {
-        //
+        $validatedData = $request->validate([
+            'nome' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:usuarios,email,' . $usuario->id,
+            'senha' => 'nullable|string|min:8|max:255',
+            'telefone' => 'required|string|max:30',
+            'tipo' => 'required|in:admin,cliente',
+            'id_empresa' => 'required|exists:empresas,id',
+        ]);
+
+        try {
+            
+            if (!empty($validatedData['senha'])) {
+                $validatedData['senha'] = \Illuminate\Support\Facades\Hash::make(
+                    $validatedData['senha']
+                );
+            } else {
+                unset($validatedData['senha']);
+            }
+
+            $usuario->update($validatedData);
+
+            return response()->json([
+                'message' => 'Usuário atualizado com sucesso!',
+                'usuario' => $usuario
+            ], 200);
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'message' => 'Falha ao atualizar usuário',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -84,6 +118,28 @@ class UsuarioController extends Controller
      */
     public function destroy(Usuario $usuario)
     {
-        //
+        try {
+            $possuiFeedbacks = DB::table('feedback')
+                ->where('id_usuario', $usuario->id)
+                ->exists();
+
+            if ($possuiFeedbacks) {
+                return response()->json([
+                    'message' => 'Não é possível excluir este usuário, pois existem feedbacks vinculados a ele.'
+                ], 409);
+            }
+
+            $usuario->delete();
+
+            return response()->json([
+                'message' => 'Usuário excluído com sucesso!'
+            ], 200);
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'message' => 'Falha ao excluir usuário',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }
