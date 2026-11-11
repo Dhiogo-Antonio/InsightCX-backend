@@ -11,11 +11,20 @@ class ServicoController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+
+    public function index(Request $request)
     {
-        $servicos = Servico::all();
-        return response()->json($servicos);
+        $usuario = $request->user();
+
+        $query = Servico::query();
+
+        if ($usuario->tipo !== 'admin') {
+            $query->where('id_empresa', $usuario->id_empresa);
+        }
+
+        return response()->json($query->get(), 200);
     }
+
 
     /**
      * Show the form for creating a new resource.

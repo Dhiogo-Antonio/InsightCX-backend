@@ -10,11 +10,20 @@ class FeedbackController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+
+    public function index(Request $request)
     {
-        $feedbacks = Feedback::all();
-        return response()->json($feedbacks);
+        $usuario = $request->user();
+
+        $query = Feedback::query();
+
+        if ($usuario->tipo !== 'admin') {
+            $query->where('id_usuario', $usuario->id);
+        }
+
+        return response()->json($query->get(), 200);
     }
+
 
     /**
      * Show the form for creating a new resource.
@@ -106,20 +115,19 @@ class FeedbackController extends Controller
      * Remove the specified resource from storage.
      */
     public function destroy(Feedback $feedback)
-{
-    try {
-        $feedback->delete();
+    {
+        try {
+            $feedback->delete();
 
-        return response()->json([
-            'message' => 'Feedback excluído com sucesso!'
-        ], 200);
+            return response()->json([
+                'message' => 'Feedback excluído com sucesso!'
+            ], 200);
+        } catch (\Exception $e) {
 
-    } catch (\Exception $e) {
-
-        return response()->json([
-            'message' => 'Falha ao excluir feedback',
-            'error' => $e->getMessage()
-        ], 500);
+            return response()->json([
+                'message' => 'Falha ao excluir feedback',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
-}
 }
