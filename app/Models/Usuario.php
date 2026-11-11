@@ -23,4 +23,14 @@ class Usuario extends Model
     protected $hidden = [
         'senha',
     ];
+
+    public function empresa()
+    {
+        return $this->belongsTo(Empresa::class, 'id_empresa');
+    }
+
+    public function feedbacks()
+    {
+        return $this->hasMany(Feedback::class, 'id_usuario');
+    }
 }
