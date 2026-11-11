@@ -29,7 +29,27 @@ class ServicoController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $validatedData = $request->validate([
+            'nome' => 'required|string|max:255',
+            'descricao' => 'required|string',
+            'status' => 'required|in:ativo,inativo',
+        ]);
+
+        try {
+            $servico = Servico::create($validatedData);
+
+            return response()->json([
+                'message' => 'Serviço criado com sucesso!',
+                'servico' => $servico
+            ], 201);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'message' => 'Falha ao criar serviço',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
