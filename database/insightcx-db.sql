@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Tempo de geração: 11/11/2026 às 14:31
+-- Tempo de geração: 11/11/2026 às 18:54
 -- Versão do servidor: 10.4.32-MariaDB
 -- Versão do PHP: 8.2.12
 
@@ -60,14 +60,6 @@ CREATE TABLE `empresas` (
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Despejando dados para a tabela `empresas`
---
-
-INSERT INTO `empresas` (`id`, `nome`, `cnpj`, `email`, `created_at`, `updated_at`) VALUES
-(1, 'Empresa ABC', '12.345.678/0001-90', 'empresaabc@gmail', '2026-11-11 13:16:59', '2026-11-11 13:16:59'),
-(2, 'CTI', '98.765.432/0001-10', 'cti@gmail', '2026-11-11 13:16:59', '2026-11-11 13:16:59');
-
 -- --------------------------------------------------------
 
 --
@@ -95,23 +87,13 @@ CREATE TABLE `feedback` (
   `id_usuario` bigint(20) UNSIGNED NOT NULL,
   `id_servico` bigint(20) UNSIGNED NOT NULL,
   `assunto` varchar(255) NOT NULL,
-  `comentario` varchar(255) NOT NULL,
+  `comentario` text NOT NULL,
   `categoria` enum('elogio','reclamacao') NOT NULL,
   `status` enum('pendente','em analise','resolvido') NOT NULL DEFAULT 'pendente',
   `prioridade` enum('baixa','media','alta') NOT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Despejando dados para a tabela `feedback`
---
-
-INSERT INTO `feedback` (`id`, `id_usuario`, `id_servico`, `assunto`, `comentario`, `categoria`, `status`, `prioridade`, `created_at`, `updated_at`) VALUES
-(13, 1, 1, 'Demora no atendimento', 'Estou aguardando atendimento há muito tempo e ainda não recebi retorno.', 'reclamacao', 'pendente', 'alta', '2026-11-11 13:22:42', '2026-11-11 13:22:42'),
-(14, 1, 2, 'Qualidade do serviço', 'Gostei muito da qualidade do serviço e da atenção prestada pela equipe.', 'elogio', 'resolvido', 'baixa', '2026-11-11 13:22:42', '2026-11-11 13:22:42'),
-(15, 2, 1, 'Melhoria no suporte', 'Seria interessante disponibilizar um canal de atendimento mais rápido.', '', 'em analise', 'media', '2026-11-11 13:22:42', '2026-11-11 13:22:42'),
-(16, 2, 2, 'Problemas na comunicação', 'Tive dificuldades para receber informações sobre o andamento do serviço.', 'reclamacao', 'pendente', 'alta', '2026-11-11 13:22:42', '2026-11-11 13:22:42');
 
 -- --------------------------------------------------------
 
@@ -168,10 +150,11 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
 (1, '0001_01_01_000000_create_users_table', 1),
 (2, '0001_01_01_000001_create_cache_table', 1),
 (3, '0001_01_01_000002_create_jobs_table', 1),
-(4, '2026_11_11_102210_create_personal_access_tokens_table', 1),
-(5, '2026_11_11_120423_create_servicos_table', 2),
-(6, '2026_11_11_130625_create_empresas_table', 3),
-(7, '2026_11_11_113918_create_feedback_table', 4);
+(4, '2026_11_11_100000_create_empresas_table', 1),
+(5, '2026_11_11_102210_create_personal_access_tokens_table', 1),
+(6, '2026_11_11_104252_create_usuarios_table', 1),
+(7, '2026_11_11_120423_create_servicos_table', 1),
+(8, '2026_11_11_123000_create_feedback_table', 1);
 
 -- --------------------------------------------------------
 
@@ -213,19 +196,12 @@ CREATE TABLE `personal_access_tokens` (
 CREATE TABLE `servicos` (
   `id` bigint(20) UNSIGNED NOT NULL,
   `nome` varchar(255) NOT NULL,
+  `id_empresa` bigint(20) UNSIGNED NOT NULL,
   `descricao` text NOT NULL,
   `status` enum('ativo','inativo') NOT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Despejando dados para a tabela `servicos`
---
-
-INSERT INTO `servicos` (`id`, `nome`, `descricao`, `status`, `created_at`, `updated_at`) VALUES
-(1, 'Atendimento ao Cliente', 'Serviço de suporte e atendimento aos clientes.', 'ativo', '2026-11-11 13:22:19', '2026-11-11 13:22:19'),
-(2, 'Consultoria Empresarial', 'Serviço de consultoria e orientação empresarial.', 'ativo', '2026-11-11 13:22:19', '2026-11-11 13:22:19');
 
 -- --------------------------------------------------------
 
@@ -276,14 +252,6 @@ CREATE TABLE `usuarios` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Despejando dados para a tabela `usuarios`
---
-
-INSERT INTO `usuarios` (`id`, `nome`, `email`, `senha`, `telefone`, `tipo`, `id_empresa`, `created_at`, `updated_at`) VALUES
-(1, 'Carlos Mendes', 'carlos@gmail.com', '1234', '', 'cliente', 1, '2026-11-11 13:18:44', '2026-11-11 13:18:44'),
-(2, 'Admin', 'admin@gmail.com', '1234', '', 'admin', 2, '2026-11-11 13:18:44', '2026-11-11 13:18:44');
 
 --
 -- Índices para tabelas despejadas
@@ -364,7 +332,8 @@ ALTER TABLE `personal_access_tokens`
 -- Índices de tabela `servicos`
 --
 ALTER TABLE `servicos`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `servicos_id_empresa_foreign` (`id_empresa`);
 
 --
 -- Índices de tabela `sessions`
@@ -385,7 +354,9 @@ ALTER TABLE `users`
 -- Índices de tabela `usuarios`
 --
 ALTER TABLE `usuarios`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `usuarios_email_unique` (`email`),
+  ADD KEY `usuarios_id_empresa_foreign` (`id_empresa`);
 
 --
 -- AUTO_INCREMENT para tabelas despejadas
@@ -395,7 +366,7 @@ ALTER TABLE `usuarios`
 -- AUTO_INCREMENT de tabela `empresas`
 --
 ALTER TABLE `empresas`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de tabela `failed_jobs`
@@ -407,7 +378,7 @@ ALTER TABLE `failed_jobs`
 -- AUTO_INCREMENT de tabela `feedback`
 --
 ALTER TABLE `feedback`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de tabela `jobs`
@@ -419,7 +390,7 @@ ALTER TABLE `jobs`
 -- AUTO_INCREMENT de tabela `migrations`
 --
 ALTER TABLE `migrations`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT de tabela `personal_access_tokens`
@@ -431,7 +402,7 @@ ALTER TABLE `personal_access_tokens`
 -- AUTO_INCREMENT de tabela `servicos`
 --
 ALTER TABLE `servicos`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT de tabela `users`
@@ -443,7 +414,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT de tabela `usuarios`
 --
 ALTER TABLE `usuarios`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- Restrições para tabelas despejadas
@@ -455,6 +426,18 @@ ALTER TABLE `usuarios`
 ALTER TABLE `feedback`
   ADD CONSTRAINT `feedback_id_servico_foreign` FOREIGN KEY (`id_servico`) REFERENCES `servicos` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `feedback_id_usuario_foreign` FOREIGN KEY (`id_usuario`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE;
+
+--
+-- Restrições para tabelas `servicos`
+--
+ALTER TABLE `servicos`
+  ADD CONSTRAINT `servicos_id_empresa_foreign` FOREIGN KEY (`id_empresa`) REFERENCES `empresas` (`id`) ON DELETE CASCADE;
+
+--
+-- Restrições para tabelas `usuarios`
+--
+ALTER TABLE `usuarios`
+  ADD CONSTRAINT `usuarios_id_empresa_foreign` FOREIGN KEY (`id_empresa`) REFERENCES `empresas` (`id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
