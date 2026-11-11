@@ -29,7 +29,29 @@ class UsuarioController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $validatedData = $request->validate([
+            'nome' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:usuarios',
+            'senha' => 'required|string|max:255',
+            'telefone' => 'required|string|max:30',
+            'tipo' => 'required|in:admin,cliente',
+        ]);
+
+        try {
+            $usuario = Usuario::create($validatedData);
+
+            return response()->json([
+                'message' => 'Usuário criado com sucesso!',
+                'usuario' => $usuario
+            ], 201);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+            'message' => 'Falha ao criar usuário',
+            'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
