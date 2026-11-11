@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
+
     public function login(Request $request)
     {
         $validatedData = $request->validate([
@@ -34,7 +35,7 @@ class AuthController extends Controller
                 'nome' => $usuario->nome,
                 'email' => $usuario->email,
                 'tipo' => $usuario->tipo,
-                'empresa' => $usuario->empresa,
+                'id_empresa' => $usuario->id_empresa,
             ]
         ], 200);
     }
