@@ -35,6 +35,7 @@ class UsuarioController extends Controller
             'senha' => 'required|string|max:255',
             'telefone' => 'required|string|max:30',
             'tipo' => 'required|in:admin,cliente',
+            'empresa' => 'required|string|max:255',
         ]);
 
         try {

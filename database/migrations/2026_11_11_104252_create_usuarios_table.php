@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('senha');
             $table->string('telefone');
             $table->enum('tipo', ['admin', 'cliente']);
+            $table->string('empresa');
             $table->timestamps();
         });
     }

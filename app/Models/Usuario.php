@@ -11,7 +11,8 @@ class Usuario extends Model
         'email',
         'senha',
         'telefone',
-        'tipo'
+        'tipo',
+        'empresa'
     
     ];  
 }
