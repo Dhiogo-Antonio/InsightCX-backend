@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Feedback extends Model
 {
+    protected $table = 'feedback';
 
     protected $fillable = [
         'id_usuario',
@@ -14,7 +15,13 @@ class Feedback extends Model
         'comentario',
         'categoria',
         'prioridade',
-        'status',
+        'status'
+    ];
+
+    protected $casts = [
+        'palavras_chave' => 'array',
+        'requer_atendimento_humano' => 'boolean',
+        'resposta_enviada_em' => 'datetime'
     ];
 
     public function usuario()
@@ -22,9 +29,13 @@ class Feedback extends Model
         return $this->belongsTo(Usuario::class, 'id_usuario');
     }
 
-      // O feedback pertence a um serviço
     public function servico()
     {
         return $this->belongsTo(Servico::class, 'id_servico');
+    }
+
+    public function analisesChatbot()
+    {
+        return $this->hasMany(AnaliseChatbot::class, 'id_feedback');
     }
 }

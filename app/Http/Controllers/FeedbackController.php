@@ -5,18 +5,27 @@ namespace App\Http\Controllers;
 use App\Models\Feedback;
 use Illuminate\Http\Request;
 use App\Models\Servico;
-
+use App\Models\AnaliseChatbot;
+use App\Services\AnalisadorFeedback;
 
 class FeedbackController extends Controller
 {
     /**
      * Listar feedbacks.
      */
+
     public function index(Request $request)
     {
         $usuario = $request->user();
 
-        $query = Feedback::query();
+        $query = Feedback::query()
+            ->with([
+                'servico:id,nome',
+                'analisesChatbot' => function ($query) {
+                    $query->orderByDesc('created_at');
+                }
+            ])
+            ->orderByDesc('created_at');
 
         if ($usuario->tipo !== 'admin') {
             $query->where('id_usuario', $usuario->id);
@@ -29,8 +38,11 @@ class FeedbackController extends Controller
      * Cadastrar feedback.
      */
 
-    public function store(Request $request)
-    {
+
+    public function store(
+        Request $request,
+        AnalisadorFeedback $analisador
+    ) {
         $usuario = $request->user();
 
         $regras = [
@@ -50,10 +62,8 @@ class FeedbackController extends Controller
 
         $validatedData = $request->validate($regras);
 
-        // Busca o serviço pelo model.
         $servico = Servico::findOrFail($validatedData['id_servico']);
 
-       
         if (
             $usuario->tipo !== 'admin' &&
             $servico->id_empresa != $usuario->id_empresa
@@ -63,7 +73,6 @@ class FeedbackController extends Controller
             ], 403);
         }
 
-        
         if ($usuario->tipo !== 'admin') {
             $validatedData['id_usuario'] = $usuario->id;
         }
@@ -71,11 +80,35 @@ class FeedbackController extends Controller
         $validatedData['status'] = $validatedData['status'] ?? 'pendente';
         $validatedData['prioridade'] = $validatedData['prioridade'] ?? 'media';
 
+        // Cadastra o feedback
         $feedback = Feedback::create($validatedData);
 
+        // Analisa automaticamente o feedback
+        $resultado = $analisador->analisar($feedback);
+
+        // Salva uma nova análise no histórico
+        $analise = AnaliseChatbot::create([
+            'id_feedback' => $feedback->id,
+            'analise' => $resultado['analise'],
+            'palavras_chave' => $resultado['palavras_chave'],
+            'prioridade_identificada' => $resultado['prioridade_identificada'],
+            'tipo_atendimento' => $resultado['tipo_atendimento'],
+            'resposta_gerada' => $resultado['resposta_gerada'],
+            'status_atendimento' => $resultado['status_atendimento'],
+            'resposta_enviada_em' => $resultado['tipo_atendimento'] === 'automatico'
+                ? now()
+                : null
+        ]);
+
+        // Atualiza a prioridade do feedback original
+        $feedback->update([
+            'prioridade' => $resultado['prioridade_identificada']
+        ]);
+
         return response()->json([
-            'message' => 'Feedback criado com sucesso!',
-            'feedback' => $feedback
+            'message' => 'Feedback cadastrado e analisado com sucesso!',
+            'feedback' => $feedback->fresh(),
+            'analise_chatbot' => $analise
         ], 201);
     }
 

@@ -12,18 +12,19 @@ class ServicoController extends Controller
      * Display a listing of the resource.
      */
 
-    public function index(Request $request)
-    {
-        $usuario = $request->user();
+    
+public function index(Request $request)
+{
+    $usuario = $request->user();
 
-        $query = Servico::query();
+    $servicos = Servico::where('id_empresa', $usuario->id_empresa)
+        ->where('status', 'ativo')
+        ->orderBy('nome')
+        ->get(['id', 'nome']);
 
-        if ($usuario->tipo !== 'admin') {
-            $query->where('id_empresa', $usuario->id_empresa);
-        }
+    return response()->json($servicos, 200);
+}
 
-        return response()->json($query->get(), 200);
-    }
 
 
     /**

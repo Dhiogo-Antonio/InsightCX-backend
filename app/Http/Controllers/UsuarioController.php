@@ -34,15 +34,16 @@ class UsuarioController extends Controller
     {
         $validatedData = $request->validate([
             'nome' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:usuarios',
-            'senha' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:usuarios,email',
+            'cpf' => 'required|string|size:11|unique:usuarios,cpf',
             'telefone' => 'required|string|max:30',
-            'tipo' => 'required|in:admin,cliente',
-            'id_empresa' => 'required|exists:empresas,id',
+            'senha' => 'required|string|min:8|max:255',
+            'empresa' => 'required|string|max:255',
+            'cnpj' => 'required|string|size:14|unique:empresas,cnpj',
         ]);
 
         try {
-           $validatedData['senha'] = Hash::make($validatedData['senha']);
+            $validatedData['senha'] = Hash::make($validatedData['senha']);
             $usuario = Usuario::create($validatedData);
 
             return response()->json([
@@ -82,6 +83,7 @@ class UsuarioController extends Controller
         $validatedData = $request->validate([
             'nome' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:usuarios,email,' . $usuario->id,
+            'cpf' => 'required|string|size:11|unique:usuarios,cpf',
             'senha' => 'nullable|string|min:8|max:255',
             'telefone' => 'required|string|max:30',
             'tipo' => 'required|in:admin,cliente',
@@ -89,7 +91,7 @@ class UsuarioController extends Controller
         ]);
 
         try {
-            
+
             if (!empty($validatedData['senha'])) {
                 $validatedData['senha'] = \Illuminate\Support\Facades\Hash::make(
                     $validatedData['senha']
