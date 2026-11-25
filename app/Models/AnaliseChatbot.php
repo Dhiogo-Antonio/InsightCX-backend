@@ -20,14 +20,20 @@ class AnaliseChatbot extends Model
         'resposta_enviada_em',
         'respondido_administrador_em',
 
-        // Novos dados da análise gerencial
+        // Dados da análise gerencial
         'sentimento',
         'aspectos_positivos',
         'aspectos_negativos',
         'problemas_identificados',
         'recomendacoes',
         'confianca_analise',
-        'resumo_gerencial'
+        'resumo_gerencial',
+
+        // Dados da aprovação da IA
+        'status_aprovacao',
+        'avaliado_por',
+        'avaliado_em',
+        'motivo_recusa'
     ];
 
     protected $casts = [
@@ -38,11 +44,23 @@ class AnaliseChatbot extends Model
         'recomendacoes' => 'array',
         'confianca_analise' => 'float',
         'resposta_enviada_em' => 'datetime',
-        'respondido_administrador_em' => 'datetime'
+        'respondido_administrador_em' => 'datetime',
+        'avaliado_em' => 'datetime'
     ];
 
     public function feedback()
     {
-        return $this->belongsTo(Feedback::class, 'id_feedback');
+        return $this->belongsTo(
+            Feedback::class,
+            'id_feedback'
+        );
+    }
+
+    public function administrador()
+    {
+        return $this->belongsTo(
+            Usuario::class,
+            'avaliado_por'
+        );
     }
 }

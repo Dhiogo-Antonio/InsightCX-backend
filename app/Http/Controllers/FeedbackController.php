@@ -45,6 +45,7 @@ class FeedbackController extends Controller
 
 
     
+
 public function store(
     Request $request,
     AnalisadorFeedback $analisador,
@@ -88,14 +89,13 @@ public function store(
     $validatedData['status'] = $validatedData['status'] ?? 'pendente';
     $validatedData['prioridade'] = $validatedData['prioridade'] ?? 'media';
 
-    // 1. Salva o feedback no banco.
+    // 1. Salvar o feedback.
     $feedback = Feedback::create($validatedData);
 
-    // 2. Faz uma análise inicial de segurança.
-    // Se a OpenAI falhar, o sistema ainda terá uma classificação básica.
+    // 2. Realizar a análise inicial.
     $resultadoBase = $analisador->analisar($feedback);
 
-    // 3. Tenta realizar a análise inteligente.
+    // 3. Tentar realizar a análise inteligente.
     try {
         $resultadoIA = $analiseIA->analisar($feedback);
 
@@ -112,15 +112,14 @@ public function store(
             'resumo_gerencial' => $resultadoIA['resumo_gerencial']
         ];
 
-        $iaDisponivel = true;
-
     } catch (\Throwable $e) {
+
         Log::error('Falha na análise inteligente do feedback', [
             'feedback_id' => $feedback->id,
             'erro' => $e->getMessage()
         ]);
 
-        // Fallback: mantém a análise anterior por palavras-chave.
+        // Utilizar a análise básica como alternativa.
         $resultado = [
             'analise' => $resultadoBase['analise'],
             'palavras_chave' => $resultadoBase['palavras_chave'],
@@ -133,50 +132,65 @@ public function store(
             'confianca_analise' => null,
             'resumo_gerencial' => 'Análise inteligente indisponível. É necessária avaliação manual.'
         ];
-
-        $iaDisponivel = false;
     }
 
-    // 4. Gera uma resposta ao cliente, usando a prioridade identificada.
+    // 4. Gerar uma resposta para todos os feedbacks.
     try {
+
         $respostaIA = $chatbot->responder(
             $feedback,
             $resultado['prioridade_identificada']
         );
+
     } catch (\Throwable $e) {
+
         Log::error('Erro ao gerar resposta do chatbot', [
             'feedback_id' => $feedback->id,
             'erro' => $e->getMessage()
         ]);
 
         $respostaIA = null;
-        $iaDisponivel = false;
     }
 
-    // 5. Define se o atendimento precisa de intervenção humana.
-    $encaminharAdministrador =
-        $resultado['prioridade_identificada'] === 'alta'
-        || !$iaDisponivel;
+    // 5. Definir a situação da resposta.
+    $respostaGerada = !empty($respostaIA);
 
-    $tipoAtendimento = $encaminharAdministrador
-        ? 'manual'
-        : 'automatico';
+    $statusAprovacao = $respostaGerada
+        ? 'aguardando'
+        : 'nao_gerada';
 
-    $statusAtendimento = $encaminharAdministrador
-        ? 'aguardando_administrador'
-        : 'respondido_automaticamente';
+    $tipoAtendimento = $respostaGerada
+        ? 'automatico'
+        : 'manual';
 
-    // 6. Salva todos os resultados da análise.
+    // Toda manifestação precisa passar pelo administrador.
+    $statusAtendimento = 'aguardando_administrador';
+
+    // 6. Registrar a análise e a resposta.
     $analise = AnaliseChatbot::create([
         'id_feedback' => $feedback->id,
+
         'analise' => $resultado['analise'],
         'palavras_chave' => $resultado['palavras_chave'],
         'prioridade_identificada' => $resultado['prioridade_identificada'],
+
         'tipo_atendimento' => $tipoAtendimento,
         'resposta_gerada' => $respostaIA,
-        'status_atendimento' => $statusAtendimento,
-        'resposta_enviada_em' => $respostaIA !== null ? now() : null,
+        'resposta_administrador' => null,
 
+        'status_atendimento' => $statusAtendimento,
+
+        // A resposta ainda não foi liberada ao cliente.
+        'resposta_enviada_em' => null,
+        'respondido_administrador_em' => null,
+
+        // Aprovação da resposta da IA.
+        'status_aprovacao' => $statusAprovacao,
+        'avaliado_por' => null,
+        'avaliado_em' => null,
+        'motivo_recusa' => null,
+
+        // Análise gerencial.
         'sentimento' => $resultado['sentimento'],
         'aspectos_positivos' => $resultado['aspectos_positivos'],
         'aspectos_negativos' => $resultado['aspectos_negativos'],
@@ -186,22 +200,21 @@ public function store(
         'resumo_gerencial' => $resultado['resumo_gerencial']
     ]);
 
-    // 7. Atualiza a prioridade do feedback.
+    // 7. Atualizar a prioridade do feedback.
     $feedback->update([
         'prioridade' => $resultado['prioridade_identificada']
     ]);
 
     return response()->json([
-        'message' => $iaDisponivel
-            ? 'Feedback cadastrado e analisado com sucesso!'
-            : 'Feedback cadastrado. Será necessária uma análise manual.',
+        'message' => $respostaGerada
+            ? 'Feedback analisado. A resposta aguarda aprovação do administrador.'
+            : 'Feedback registrado. É necessária uma resposta manual do administrador.',
 
         'feedback' => $feedback->fresh(),
 
         'analise_chatbot' => $analise
     ], 201);
 }
-    
 
     /**
      * Exibir um feedback específico.
@@ -302,30 +315,100 @@ public function store(
 
 
 
-    public function responder(Request $request, AnaliseChatbot $analise)
-    {
-        // Verificar se o usuário é administrador
-        if ($request->user()->tipo !== 'admin') {
-            return response()->json([
-                'message' => 'Apenas administradores podem responder aos feedbacks.'
-            ], 403);
-        }
-
-        // Validar a resposta
-        $dados = $request->validate([
-            'resposta_administrador' => 'required|string|min:3|max:5000'
-        ]);
-
-        // Registrar a resposta do administrador
-        $analise->update([
-            'resposta_administrador' => $dados['resposta_administrador'],
-            'respondido_administrador_em' => now(),
-            'status_atendimento' => 'finalizado'
-        ]);
-
+    
+public function responder(Request $request, AnaliseChatbot $analise)
+{
+    if ($request->user()->tipo !== 'admin') {
         return response()->json([
-            'message' => 'Resposta registrada com sucesso!',
-            'analise_chatbot' => $analise->fresh()
-        ], 200);
+            'message' => 'Apenas administradores podem responder aos feedbacks.'
+        ], 403);
     }
+
+    if (!in_array($analise->status_aprovacao, ['recusada', 'nao_gerada'])) {
+        return response()->json([
+            'message' => 'A resposta manual não está disponível para esta análise.'
+        ], 422);
+    }
+
+    $dados = $request->validate([
+        'resposta_administrador' => 'required|string|min:3|max:5000'
+    ]);
+
+    $analise->update([
+        'resposta_administrador' => $dados['resposta_administrador'],
+        'respondido_administrador_em' => now(),
+        'status_atendimento' => 'finalizado'
+    ]);
+
+    return response()->json([
+        'message' => 'Resposta manual registrada com sucesso!',
+        'analise_chatbot' => $analise->fresh()
+    ], 200);
+}
+
+
+public function aprovar(Request $request, AnaliseChatbot $analise)
+{
+    if ($request->user()->tipo !== 'admin') {
+        return response()->json([
+            'message' => 'Apenas administradores podem aprovar respostas.'
+        ], 403);
+    }
+
+    if (
+        $analise->status_aprovacao !== 'aguardando' ||
+        empty($analise->resposta_gerada)
+    ) {
+        return response()->json([
+            'message' => 'Esta resposta não está disponível para aprovação.'
+        ], 422);
+    }
+
+    $analise->update([
+        'status_aprovacao' => 'aprovada',
+        'avaliado_por' => $request->user()->id,
+        'avaliado_em' => now(),
+        'status_atendimento' => 'respondido_automaticamente',
+        'resposta_enviada_em' => now()
+    ]);
+
+    return response()->json([
+        'message' => 'Resposta da IA aprovada e liberada para o cliente!',
+        'analise_chatbot' => $analise->fresh()
+    ], 200);
+}
+
+
+public function recusar(Request $request, AnaliseChatbot $analise)
+{
+    if ($request->user()->tipo !== 'admin') {
+        return response()->json([
+            'message' => 'Apenas administradores podem recusar respostas.'
+        ], 403);
+    }
+
+    if ($analise->status_aprovacao !== 'aguardando') {
+        return response()->json([
+            'message' => 'Esta resposta não está aguardando aprovação.'
+        ], 422);
+    }
+
+    $dados = $request->validate([
+        'motivo_recusa' => 'nullable|string|max:1000'
+    ]);
+
+    $analise->update([
+        'status_aprovacao' => 'recusada',
+        'avaliado_por' => $request->user()->id,
+        'avaliado_em' => now(),
+        'motivo_recusa' => $dados['motivo_recusa'] ?? null,
+        'status_atendimento' => 'em_atendimento'
+    ]);
+
+    return response()->json([
+        'message' => 'Resposta recusada. O administrador poderá escrever uma resposta manual.',
+        'analise_chatbot' => $analise->fresh()
+    ], 200);
+}
+
 }

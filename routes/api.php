@@ -65,9 +65,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/sugestoes/{sugestao}', [SugestaoController::class, 'destroy']);
 
         // Respostas dos feedbacks pelo administrador
-        Route::put(
-            '/analises-chatbot/{analise}/responder',
-            [FeedbackController::class, 'responder']
-        );
+        // Aprovar resposta gerada pela IA
+Route::put(
+    '/analises-chatbot/{analise}/aprovar',
+    [FeedbackController::class, 'aprovar']
+);
+
+// Recusar resposta gerada pela IA
+Route::put(
+    '/analises-chatbot/{analise}/recusar',
+    [FeedbackController::class, 'recusar']
+);
+
+// Registrar resposta manual do administrador
+Route::put(
+    '/analises-chatbot/{analise}/responder',
+    [FeedbackController::class, 'responder']
+);
     });
 });
