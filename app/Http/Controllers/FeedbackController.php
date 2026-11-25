@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AnaliseFeedbackIA;
 use App\Services\ChatbotService;
 use Illuminate\Support\Facades\Log;
 use App\Models\Feedback;
@@ -43,112 +44,164 @@ class FeedbackController extends Controller
 
 
 
-    public function store(
-        Request $request,
-        AnalisadorFeedback $analisador,
-        ChatbotService $chatbot
-    ) {
-        $usuario = $request->user();
+    
+public function store(
+    Request $request,
+    AnalisadorFeedback $analisador,
+    ChatbotService $chatbot,
+    AnaliseFeedbackIA $analiseIA
+) {
+    $usuario = $request->user();
 
-        $regras = [
-            'id_servico' => 'required|exists:servicos,id',
-            'assunto' => 'required|string|max:255',
-            'comentario' => 'required|string',
-            'categoria' => 'required|in:elogio,reclamacao',
+    $regras = [
+        'id_servico' => 'required|exists:servicos,id',
+        'assunto' => 'required|string|max:255',
+        'comentario' => 'required|string',
+        'categoria' => 'required|in:elogio,reclamacao',
+    ];
+
+    if ($usuario->tipo === 'admin') {
+        $regras['id_usuario'] = 'required|exists:usuarios,id';
+        $regras['status'] = 'sometimes|in:pendente,em analise,resolvido';
+        $regras['prioridade'] = 'required|in:baixa,media,alta';
+    } else {
+        $regras['prioridade'] = 'sometimes|in:baixa,media,alta';
+    }
+
+    $validatedData = $request->validate($regras);
+
+    $servico = Servico::findOrFail($validatedData['id_servico']);
+
+    if (
+        $usuario->tipo !== 'admin' &&
+        $servico->id_empresa != $usuario->id_empresa
+    ) {
+        return response()->json([
+            'message' => 'Você não pode registrar feedback para este serviço.'
+        ], 403);
+    }
+
+    if ($usuario->tipo !== 'admin') {
+        $validatedData['id_usuario'] = $usuario->id;
+    }
+
+    $validatedData['status'] = $validatedData['status'] ?? 'pendente';
+    $validatedData['prioridade'] = $validatedData['prioridade'] ?? 'media';
+
+    // 1. Salva o feedback no banco.
+    $feedback = Feedback::create($validatedData);
+
+    // 2. Faz uma análise inicial de segurança.
+    // Se a OpenAI falhar, o sistema ainda terá uma classificação básica.
+    $resultadoBase = $analisador->analisar($feedback);
+
+    // 3. Tenta realizar a análise inteligente.
+    try {
+        $resultadoIA = $analiseIA->analisar($feedback);
+
+        $resultado = [
+            'analise' => $resultadoIA['analise'],
+            'palavras_chave' => $resultadoIA['palavras_chave'],
+            'prioridade_identificada' => $resultadoIA['prioridade'],
+            'sentimento' => $resultadoIA['sentimento'],
+            'aspectos_positivos' => $resultadoIA['aspectos_positivos'],
+            'aspectos_negativos' => $resultadoIA['aspectos_negativos'],
+            'problemas_identificados' => $resultadoIA['problemas_identificados'],
+            'recomendacoes' => $resultadoIA['recomendacoes'],
+            'confianca_analise' => $resultadoIA['confianca'],
+            'resumo_gerencial' => $resultadoIA['resumo_gerencial']
         ];
 
-        if ($usuario->tipo === 'admin') {
-            $regras['id_usuario'] = 'required|exists:usuarios,id';
-            $regras['status'] = 'sometimes|in:pendente,em analise,resolvido';
-            $regras['prioridade'] = 'required|in:baixa,media,alta';
-        } else {
-            $regras['prioridade'] = 'sometimes|in:baixa,media,alta';
-        }
+        $iaDisponivel = true;
 
-        $validatedData = $request->validate($regras);
-
-        $servico = Servico::findOrFail($validatedData['id_servico']);
-
-        if (
-            $usuario->tipo !== 'admin' &&
-            $servico->id_empresa != $usuario->id_empresa
-        ) {
-            return response()->json([
-                'message' => 'Você não pode registrar feedback para este serviço.'
-            ], 403);
-        }
-
-        if ($usuario->tipo !== 'admin') {
-            $validatedData['id_usuario'] = $usuario->id;
-        }
-
-        $validatedData['status'] = $validatedData['status'] ?? 'pendente';
-        $validatedData['prioridade'] = $validatedData['prioridade'] ?? 'media';
-
-        // Cadastra o feedback.
-        $feedback = Feedback::create($validatedData);
-
-        // Analisa e identifica a prioridade.
-        $resultado = $analisador->analisar($feedback);
-
-        // Solicita uma resposta personalizada à inteligência artificial.
-        try {
-            $respostaIA = $chatbot->responder(
-                $feedback,
-                $resultado['prioridade_identificada']
-            );
-
-            $iaDisponivel = true;
-        } catch (\Throwable $e) {
-            Log::error('Erro ao gerar resposta do chatbot', [
-                'feedback_id' => $feedback->id,
-                'erro' => $e->getMessage()
-            ]);
-
-            $respostaIA = null;
-            $iaDisponivel = false;
-        }
-
-        // Casos graves ou falhas na IA precisam de atendimento humano.
-        $encaminharAdministrador =
-            $resultado['prioridade_identificada'] === 'alta'
-            || !$iaDisponivel;
-
-        $tipoAtendimento = $encaminharAdministrador
-            ? 'manual'
-            : 'automatico';
-
-        $statusAtendimento = $encaminharAdministrador
-            ? 'aguardando_administrador'
-            : 'respondido_automaticamente';
-
-        // Salva a análise no histórico.
-        $analise = AnaliseChatbot::create([
-            'id_feedback' => $feedback->id,
-            'analise' => $resultado['analise'],
-            'palavras_chave' => $resultado['palavras_chave'],
-            'prioridade_identificada' => $resultado['prioridade_identificada'],
-            'tipo_atendimento' => $tipoAtendimento,
-            'resposta_gerada' => $respostaIA,
-            'status_atendimento' => $statusAtendimento,
-            'resposta_enviada_em' => $respostaIA !== null
-                ? now()
-                : null
+    } catch (\Throwable $e) {
+        Log::error('Falha na análise inteligente do feedback', [
+            'feedback_id' => $feedback->id,
+            'erro' => $e->getMessage()
         ]);
 
-        // Atualiza a prioridade do feedback.
-        $feedback->update([
-            'prioridade' => $resultado['prioridade_identificada']
-        ]);
+        // Fallback: mantém a análise anterior por palavras-chave.
+        $resultado = [
+            'analise' => $resultadoBase['analise'],
+            'palavras_chave' => $resultadoBase['palavras_chave'],
+            'prioridade_identificada' => $resultadoBase['prioridade_identificada'],
+            'sentimento' => null,
+            'aspectos_positivos' => [],
+            'aspectos_negativos' => [],
+            'problemas_identificados' => [],
+            'recomendacoes' => [],
+            'confianca_analise' => null,
+            'resumo_gerencial' => 'Análise inteligente indisponível. É necessária avaliação manual.'
+        ];
 
-        return response()->json([
-            'message' => $iaDisponivel
-                ? 'Feedback cadastrado e analisado com sucesso!'
-                : 'Feedback cadastrado. O atendimento será realizado pela equipe.',
-            'feedback' => $feedback->fresh(),
-            'analise_chatbot' => $analise
-        ], 201);
+        $iaDisponivel = false;
     }
+
+    // 4. Gera uma resposta ao cliente, usando a prioridade identificada.
+    try {
+        $respostaIA = $chatbot->responder(
+            $feedback,
+            $resultado['prioridade_identificada']
+        );
+    } catch (\Throwable $e) {
+        Log::error('Erro ao gerar resposta do chatbot', [
+            'feedback_id' => $feedback->id,
+            'erro' => $e->getMessage()
+        ]);
+
+        $respostaIA = null;
+        $iaDisponivel = false;
+    }
+
+    // 5. Define se o atendimento precisa de intervenção humana.
+    $encaminharAdministrador =
+        $resultado['prioridade_identificada'] === 'alta'
+        || !$iaDisponivel;
+
+    $tipoAtendimento = $encaminharAdministrador
+        ? 'manual'
+        : 'automatico';
+
+    $statusAtendimento = $encaminharAdministrador
+        ? 'aguardando_administrador'
+        : 'respondido_automaticamente';
+
+    // 6. Salva todos os resultados da análise.
+    $analise = AnaliseChatbot::create([
+        'id_feedback' => $feedback->id,
+        'analise' => $resultado['analise'],
+        'palavras_chave' => $resultado['palavras_chave'],
+        'prioridade_identificada' => $resultado['prioridade_identificada'],
+        'tipo_atendimento' => $tipoAtendimento,
+        'resposta_gerada' => $respostaIA,
+        'status_atendimento' => $statusAtendimento,
+        'resposta_enviada_em' => $respostaIA !== null ? now() : null,
+
+        'sentimento' => $resultado['sentimento'],
+        'aspectos_positivos' => $resultado['aspectos_positivos'],
+        'aspectos_negativos' => $resultado['aspectos_negativos'],
+        'problemas_identificados' => $resultado['problemas_identificados'],
+        'recomendacoes' => $resultado['recomendacoes'],
+        'confianca_analise' => $resultado['confianca_analise'],
+        'resumo_gerencial' => $resultado['resumo_gerencial']
+    ]);
+
+    // 7. Atualiza a prioridade do feedback.
+    $feedback->update([
+        'prioridade' => $resultado['prioridade_identificada']
+    ]);
+
+    return response()->json([
+        'message' => $iaDisponivel
+            ? 'Feedback cadastrado e analisado com sucesso!'
+            : 'Feedback cadastrado. Será necessária uma análise manual.',
+
+        'feedback' => $feedback->fresh(),
+
+        'analise_chatbot' => $analise
+    ], 201);
+}
+    
 
     /**
      * Exibir um feedback específico.
