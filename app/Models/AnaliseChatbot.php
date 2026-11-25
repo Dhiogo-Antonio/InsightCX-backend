@@ -15,13 +15,16 @@ class AnaliseChatbot extends Model
         'prioridade_identificada',
         'tipo_atendimento',
         'resposta_gerada',
+        'resposta_administrador',
         'status_atendimento',
-        'resposta_enviada_em'
+        'resposta_enviada_em',
+        'respondido_administrador_em'
     ];
 
     protected $casts = [
         'palavras_chave' => 'array',
-        'resposta_enviada_em' => 'datetime'
+        'resposta_enviada_em' => 'datetime',
+        'respondido_administrador_em' => 'datetime'
     ];
 
     public function feedback()

@@ -47,6 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/sugestoes/{sugestao}', [SugestaoController::class, 'show']);
 
     // Somente administrador
+    // Somente administrador
     Route::middleware('tipo:admin')->group(function () {
 
         Route::apiResource('usuarios', UsuarioController::class);
@@ -62,5 +63,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/sugestoes', [SugestaoController::class, 'store']);
         Route::put('/sugestoes/{sugestao}', [SugestaoController::class, 'update']);
         Route::delete('/sugestoes/{sugestao}', [SugestaoController::class, 'destroy']);
+
+        // Respostas dos feedbacks pelo administrador
+        Route::put(
+            '/analises-chatbot/{analise}/responder',
+            [FeedbackController::class, 'responder']
+        );
     });
 });

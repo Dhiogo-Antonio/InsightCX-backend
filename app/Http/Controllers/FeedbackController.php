@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ChatbotService;
+use Illuminate\Support\Facades\Log;
 use App\Models\Feedback;
 use Illuminate\Http\Request;
 use App\Models\Servico;
@@ -21,6 +23,7 @@ class FeedbackController extends Controller
         $query = Feedback::query()
             ->with([
                 'servico:id,nome',
+                'usuario:id,nome,email',
                 'analisesChatbot' => function ($query) {
                     $query->orderByDesc('created_at');
                 }
@@ -39,9 +42,11 @@ class FeedbackController extends Controller
      */
 
 
+
     public function store(
         Request $request,
-        AnalisadorFeedback $analisador
+        AnalisadorFeedback $analisador,
+        ChatbotService $chatbot
     ) {
         $usuario = $request->user();
 
@@ -80,38 +85,70 @@ class FeedbackController extends Controller
         $validatedData['status'] = $validatedData['status'] ?? 'pendente';
         $validatedData['prioridade'] = $validatedData['prioridade'] ?? 'media';
 
-        // Cadastra o feedback
+        // Cadastra o feedback.
         $feedback = Feedback::create($validatedData);
 
-        // Analisa automaticamente o feedback
+        // Analisa e identifica a prioridade.
         $resultado = $analisador->analisar($feedback);
 
-        // Salva uma nova análise no histórico
+        // Solicita uma resposta personalizada à inteligência artificial.
+        try {
+            $respostaIA = $chatbot->responder(
+                $feedback,
+                $resultado['prioridade_identificada']
+            );
+
+            $iaDisponivel = true;
+        } catch (\Throwable $e) {
+            Log::error('Erro ao gerar resposta do chatbot', [
+                'feedback_id' => $feedback->id,
+                'erro' => $e->getMessage()
+            ]);
+
+            $respostaIA = null;
+            $iaDisponivel = false;
+        }
+
+        // Casos graves ou falhas na IA precisam de atendimento humano.
+        $encaminharAdministrador =
+            $resultado['prioridade_identificada'] === 'alta'
+            || !$iaDisponivel;
+
+        $tipoAtendimento = $encaminharAdministrador
+            ? 'manual'
+            : 'automatico';
+
+        $statusAtendimento = $encaminharAdministrador
+            ? 'aguardando_administrador'
+            : 'respondido_automaticamente';
+
+        // Salva a análise no histórico.
         $analise = AnaliseChatbot::create([
             'id_feedback' => $feedback->id,
             'analise' => $resultado['analise'],
             'palavras_chave' => $resultado['palavras_chave'],
             'prioridade_identificada' => $resultado['prioridade_identificada'],
-            'tipo_atendimento' => $resultado['tipo_atendimento'],
-            'resposta_gerada' => $resultado['resposta_gerada'],
-            'status_atendimento' => $resultado['status_atendimento'],
-            'resposta_enviada_em' => $resultado['tipo_atendimento'] === 'automatico'
+            'tipo_atendimento' => $tipoAtendimento,
+            'resposta_gerada' => $respostaIA,
+            'status_atendimento' => $statusAtendimento,
+            'resposta_enviada_em' => $respostaIA !== null
                 ? now()
                 : null
         ]);
 
-        // Atualiza a prioridade do feedback original
+        // Atualiza a prioridade do feedback.
         $feedback->update([
             'prioridade' => $resultado['prioridade_identificada']
         ]);
 
         return response()->json([
-            'message' => 'Feedback cadastrado e analisado com sucesso!',
+            'message' => $iaDisponivel
+                ? 'Feedback cadastrado e analisado com sucesso!'
+                : 'Feedback cadastrado. O atendimento será realizado pela equipe.',
             'feedback' => $feedback->fresh(),
             'analise_chatbot' => $analise
         ], 201);
     }
-
 
     /**
      * Exibir um feedback específico.
@@ -207,6 +244,35 @@ class FeedbackController extends Controller
 
         return response()->json([
             'message' => 'Feedback excluído com sucesso!'
+        ], 200);
+    }
+
+
+
+    public function responder(Request $request, AnaliseChatbot $analise)
+    {
+        // Verificar se o usuário é administrador
+        if ($request->user()->tipo !== 'admin') {
+            return response()->json([
+                'message' => 'Apenas administradores podem responder aos feedbacks.'
+            ], 403);
+        }
+
+        // Validar a resposta
+        $dados = $request->validate([
+            'resposta_administrador' => 'required|string|min:3|max:5000'
+        ]);
+
+        // Registrar a resposta do administrador
+        $analise->update([
+            'resposta_administrador' => $dados['resposta_administrador'],
+            'respondido_administrador_em' => now(),
+            'status_atendimento' => 'finalizado'
+        ]);
+
+        return response()->json([
+            'message' => 'Resposta registrada com sucesso!',
+            'analise_chatbot' => $analise->fresh()
         ], 200);
     }
 }
