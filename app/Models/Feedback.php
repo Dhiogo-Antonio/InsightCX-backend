@@ -19,9 +19,7 @@ class Feedback extends Model
     ];
 
     protected $casts = [
-        'palavras_chave' => 'array',
-        'requer_atendimento_humano' => 'boolean',
-        'resposta_enviada_em' => 'datetime'
+        'id_usuario' => 'integer'
     ];
 
     public function usuario()
@@ -31,6 +29,9 @@ class Feedback extends Model
 
     public function analisesChatbot()
     {
-        return $this->hasMany(AnaliseChatbot::class, 'id_feedback');
+        return $this->hasMany(
+            AnaliseChatbot::class,
+            'id_feedback'
+        );
     }
 }

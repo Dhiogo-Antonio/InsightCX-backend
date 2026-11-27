@@ -10,7 +10,6 @@ class Sugestao extends Model
 
     protected $fillable = [
         'id_empresa',
-        'id_servico',
         'titulo',
         'descricao',
         'status'
@@ -20,10 +19,4 @@ class Sugestao extends Model
     {
         return $this->belongsTo(Empresa::class, 'id_empresa');
     }
-
-    public function servico()
-    {
-        return $this->belongsTo(Servico::class, 'id_servico');
-    }
 }
-
