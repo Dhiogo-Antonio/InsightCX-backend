@@ -6,11 +6,11 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UsuarioController;
-use App\Http\Controllers\ServicoController;
 use App\Http\Controllers\EmpresaController;
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\SugestaoController;
 
+// Cadastro
 Route::post('/cadastrar', [AuthController::class, 'cadastrar']);
 
 // Login público
@@ -34,9 +34,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    // Serviços
-    Route::get('/servicos', [ServicoController::class, 'index']);
-
     // Feedbacks
     Route::get('/feedbacks', [FeedbackController::class, 'index']);
     Route::post('/feedbacks', [FeedbackController::class, 'store']);
@@ -47,14 +44,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/sugestoes/{sugestao}', [SugestaoController::class, 'show']);
 
     // Somente administrador
-    // Somente administrador
     Route::middleware('tipo:admin')->group(function () {
 
         Route::apiResource('usuarios', UsuarioController::class);
         Route::apiResource('empresas', EmpresaController::class);
-
-        Route::apiResource('servicos', ServicoController::class)
-            ->except(['index']);
 
         Route::apiResource('feedbacks', FeedbackController::class)
             ->except(['index', 'store', 'show']);
@@ -65,22 +58,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/sugestoes/{sugestao}', [SugestaoController::class, 'destroy']);
 
         // Respostas dos feedbacks pelo administrador
-        // Aprovar resposta gerada pela IA
-Route::put(
-    '/analises-chatbot/{analise}/aprovar',
-    [FeedbackController::class, 'aprovar']
-);
+        Route::put(
+            '/analises-chatbot/{analise}/aprovar',
+            [FeedbackController::class, 'aprovar']
+        );
 
-// Recusar resposta gerada pela IA
-Route::put(
-    '/analises-chatbot/{analise}/recusar',
-    [FeedbackController::class, 'recusar']
-);
+        Route::put(
+            '/analises-chatbot/{analise}/recusar',
+            [FeedbackController::class, 'recusar']
+        );
 
-// Registrar resposta manual do administrador
-Route::put(
-    '/analises-chatbot/{analise}/responder',
-    [FeedbackController::class, 'responder']
-);
+        Route::put(
+            '/analises-chatbot/{analise}/responder',
+            [FeedbackController::class, 'responder']
+        );
     });
 });

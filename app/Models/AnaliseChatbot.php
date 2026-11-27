@@ -20,7 +20,7 @@ class AnaliseChatbot extends Model
         'resposta_enviada_em',
         'respondido_administrador_em',
 
-        // Dados da análise gerencial
+        
         'sentimento',
         'aspectos_positivos',
         'aspectos_negativos',
@@ -29,7 +29,7 @@ class AnaliseChatbot extends Model
         'confianca_analise',
         'resumo_gerencial',
 
-        // Dados da aprovação da IA
+    
         'status_aprovacao',
         'avaliado_por',
         'avaliado_em',

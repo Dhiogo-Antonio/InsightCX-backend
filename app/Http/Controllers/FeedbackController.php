@@ -17,26 +17,27 @@ class FeedbackController extends Controller
      * Listar feedbacks.
      */
 
-    public function index(Request $request)
-    {
-        $usuario = $request->user();
+    
+public function index(Request $request)
+{
+    $usuario = $request->user();
 
-        $query = Feedback::query()
-            ->with([
-                'servico:id,nome',
-                'usuario:id,nome,email',
-                'analisesChatbot' => function ($query) {
-                    $query->orderByDesc('created_at');
-                }
-            ])
-            ->orderByDesc('created_at');
+    $query = Feedback::query()
+        ->with([
+            'usuario:id,nome,email',
+            'analisesChatbot' => function ($query) {
+                $query->orderByDesc('created_at');
+            }
+        ])
+        ->orderByDesc('created_at');
 
-        if ($usuario->tipo !== 'admin') {
-            $query->where('id_usuario', $usuario->id);
-        }
-
-        return response()->json($query->get(), 200);
+    if ($usuario->tipo !== 'admin') {
+        $query->where('id_usuario', $usuario->id);
     }
+
+    return response()->json($query->get(), 200);
+}
+
 
     /**
      * Cadastrar feedback.
@@ -45,6 +46,7 @@ class FeedbackController extends Controller
 
 
     
+
 
 public function store(
     Request $request,
@@ -55,7 +57,7 @@ public function store(
     $usuario = $request->user();
 
     $regras = [
-        'id_servico' => 'required|exists:servicos,id',
+        'servico' => 'required|string|max:255',
         'assunto' => 'required|string|max:255',
         'comentario' => 'required|string',
         'categoria' => 'required|in:elogio,reclamacao',
@@ -70,17 +72,6 @@ public function store(
     }
 
     $validatedData = $request->validate($regras);
-
-    $servico = Servico::findOrFail($validatedData['id_servico']);
-
-    if (
-        $usuario->tipo !== 'admin' &&
-        $servico->id_empresa != $usuario->id_empresa
-    ) {
-        return response()->json([
-            'message' => 'Você não pode registrar feedback para este serviço.'
-        ], 403);
-    }
 
     if ($usuario->tipo !== 'admin') {
         $validatedData['id_usuario'] = $usuario->id;
@@ -163,7 +154,6 @@ public function store(
         ? 'automatico'
         : 'manual';
 
-    // Toda manifestação precisa passar pelo administrador.
     $statusAtendimento = 'aguardando_administrador';
 
     // 6. Registrar a análise e a resposta.
@@ -180,17 +170,14 @@ public function store(
 
         'status_atendimento' => $statusAtendimento,
 
-        // A resposta ainda não foi liberada ao cliente.
         'resposta_enviada_em' => null,
         'respondido_administrador_em' => null,
 
-        // Aprovação da resposta da IA.
         'status_aprovacao' => $statusAprovacao,
         'avaliado_por' => null,
         'avaliado_em' => null,
         'motivo_recusa' => null,
 
-        // Análise gerencial.
         'sentimento' => $resultado['sentimento'],
         'aspectos_positivos' => $resultado['aspectos_positivos'],
         'aspectos_negativos' => $resultado['aspectos_negativos'],
@@ -238,60 +225,50 @@ public function store(
     /**
      * Atualizar feedback.
      */
-    public function update(Request $request, Feedback $feedback)
-    {
-        $usuario = $request->user();
+    
+public function update(Request $request, Feedback $feedback)
+{
+    $usuario = $request->user();
 
-        // Cliente só pode alterar o próprio feedback.
-        if (
-            $usuario->tipo !== 'admin' &&
-            $feedback->id_usuario != $usuario->id
-        ) {
-            return response()->json([
-                'message' => 'Você não tem permissão para alterar este feedback.'
-            ], 403);
-        }
-
-        if ($usuario->tipo === 'admin') {
-            $validatedData = $request->validate([
-                'id_usuario' => 'sometimes|required|exists:usuarios,id',
-                'id_servico' => 'sometimes|required|exists:servicos,id',
-                'assunto' => 'sometimes|required|string|max:255',
-                'comentario' => 'sometimes|required|string',
-                'categoria' => 'sometimes|required|in:elogio,reclamacao',
-                'prioridade' => 'sometimes|required|in:baixa,media,alta',
-                'status' => 'sometimes|required|in:pendente,em analise,resolvido',
-            ]);
-        } else {
-            // Cliente não pode alterar status, prioridade ou proprietário.
-            $validatedData = $request->validate([
-                'assunto' => 'sometimes|required|string|max:255',
-                'comentario' => 'sometimes|required|string',
-                'categoria' => 'sometimes|required|in:elogio,reclamacao',
-            ]);
-        }
-
-        // Se o administrador trocar o serviço, verifica se ele existe.
-        if (isset($validatedData['id_servico'])) {
-            $servico = Servico::findOrFail($validatedData['id_servico']);
-
-            if (
-                $usuario->tipo !== 'admin' &&
-                $servico->id_empresa != $usuario->id_empresa
-            ) {
-                return response()->json([
-                    'message' => 'Este serviço não pertence à sua empresa.'
-                ], 403);
-            }
-        }
-
-        $feedback->update($validatedData);
-
+    // Cliente só pode alterar o próprio feedback.
+    if (
+        $usuario->tipo !== 'admin' &&
+        $feedback->id_usuario != $usuario->id
+    ) {
         return response()->json([
-            'message' => 'Feedback atualizado com sucesso!',
-            'feedback' => $feedback->fresh()
-        ], 200);
+            'message' => 'Você não tem permissão para alterar este feedback.'
+        ], 403);
     }
+
+    if ($usuario->tipo === 'admin') {
+
+        $validatedData = $request->validate([
+            'id_usuario' => 'sometimes|required|exists:usuarios,id',
+            'servico' => 'sometimes|required|string|max:255',
+            'assunto' => 'sometimes|required|string|max:255',
+            'comentario' => 'sometimes|required|string',
+            'categoria' => 'sometimes|required|in:elogio,reclamacao',
+            'prioridade' => 'sometimes|required|in:baixa,media,alta',
+            'status' => 'sometimes|required|in:pendente,em analise,resolvido',
+        ]);
+
+    } else {
+
+        // Cliente não pode alterar status, prioridade ou proprietário.
+        $validatedData = $request->validate([
+            'assunto' => 'sometimes|required|string|max:255',
+            'comentario' => 'sometimes|required|string',
+            'categoria' => 'sometimes|required|in:elogio,reclamacao',
+        ]);
+    }
+
+    $feedback->update($validatedData);
+
+    return response()->json([
+        'message' => 'Feedback atualizado com sucesso!',
+        'feedback' => $feedback->fresh()
+    ], 200);
+}
 
     /**
      * Excluir feedback.

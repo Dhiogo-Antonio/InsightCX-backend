@@ -10,7 +10,7 @@ class Feedback extends Model
 
     protected $fillable = [
         'id_usuario',
-        'id_servico',
+        'servico',
         'assunto',
         'comentario',
         'categoria',
@@ -27,11 +27,6 @@ class Feedback extends Model
     public function usuario()
     {
         return $this->belongsTo(Usuario::class, 'id_usuario');
-    }
-
-    public function servico()
-    {
-        return $this->belongsTo(Servico::class, 'id_servico');
     }
 
     public function analisesChatbot()

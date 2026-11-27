@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 
 class SugestaoController extends Controller
 {
-    // Listar sugestões
+    
     public function index(Request $request)
     {
         $usuario = $request->user();
@@ -16,7 +16,7 @@ class SugestaoController extends Controller
         $query = Sugestao::with('servico:id,nome')
             ->orderByDesc('created_at');
 
-        // Cliente visualiza somente sugestões da própria empresa
+        
         if ($usuario->tipo !== 'admin') {
             $query->where('id_empresa', $usuario->id_empresa);
         }
@@ -24,12 +24,12 @@ class SugestaoController extends Controller
         return response()->json($query->get(), 200);
     }
 
-    // Cadastrar sugestão
+    
     public function store(Request $request)
     {
         $usuario = $request->user();
 
-        // Somente administrador pode cadastrar
+        
         if ($usuario->tipo !== 'admin') {
             return response()->json([
                 'mensagem' => 'Você não tem permissão para cadastrar sugestões.'
@@ -44,7 +44,7 @@ class SugestaoController extends Controller
             'status' => 'nullable|in:pendente,em andamento,concluida'
         ]);
 
-        // Verifica se o serviço pertence à empresa informada
+        
         $servico = Servico::where('id', $dados['id_servico'])
             ->where('id_empresa', $dados['id_empresa'])
             ->first();
@@ -65,12 +65,12 @@ class SugestaoController extends Controller
         ], 201);
     }
 
-    // Visualizar uma sugestão
+    
     public function show(Request $request, Sugestao $sugestao)
     {
         $usuario = $request->user();
 
-        // Cliente só pode visualizar sugestões da própria empresa
+        
         if (
             $usuario->tipo !== 'admin' &&
             $sugestao->id_empresa != $usuario->id_empresa
@@ -86,7 +86,7 @@ class SugestaoController extends Controller
         );
     }
 
-    // Atualizar sugestão
+    
     public function update(Request $request, Sugestao $sugestao)
     {
         $usuario = $request->user();
@@ -126,7 +126,7 @@ class SugestaoController extends Controller
         ], 200);
     }
 
-    // Excluir sugestão
+    
     public function destroy(Request $request, Sugestao $sugestao)
     {
         $usuario = $request->user();
