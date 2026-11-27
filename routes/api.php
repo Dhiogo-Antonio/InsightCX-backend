@@ -32,32 +32,51 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     });
 
+    // Logout
     Route::post('/logout', [AuthController::class, 'logout']);
 
     // Feedbacks
+
+    // Histórico de feedbacks respondidos
+    // Deve ficar antes da rota dinâmica /feedbacks/{feedback}
+    Route::get('/feedbacks/historico-respondidos', [
+        FeedbackController::class,
+        'historicoRespondidos'
+    ]);
+
     Route::get('/feedbacks', [FeedbackController::class, 'index']);
+
     Route::post('/feedbacks', [FeedbackController::class, 'store']);
+
     Route::get('/feedbacks/{feedback}', [FeedbackController::class, 'show']);
 
     // Sugestões
     Route::get('/sugestoes', [SugestaoController::class, 'index']);
+
     Route::get('/sugestoes/{sugestao}', [SugestaoController::class, 'show']);
 
     // Somente administrador
     Route::middleware('tipo:admin')->group(function () {
 
+        // Usuários
         Route::apiResource('usuarios', UsuarioController::class);
+
+        // Empresas
         Route::apiResource('empresas', EmpresaController::class);
 
+        // Gerenciamento de feedbacks
         Route::apiResource('feedbacks', FeedbackController::class)
             ->except(['index', 'store', 'show']);
 
         // Gerenciamento de sugestões
         Route::post('/sugestoes', [SugestaoController::class, 'store']);
+
         Route::put('/sugestoes/{sugestao}', [SugestaoController::class, 'update']);
+
         Route::delete('/sugestoes/{sugestao}', [SugestaoController::class, 'destroy']);
 
         // Respostas dos feedbacks pelo administrador
+
         Route::put(
             '/analises-chatbot/{analise}/aprovar',
             [FeedbackController::class, 'aprovar']

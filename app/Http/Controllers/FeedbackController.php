@@ -92,7 +92,6 @@ class FeedbackController extends Controller
                 'confianca_analise' => $resultadoIA['confianca'],
                 'resumo_gerencial' => $resultadoIA['resumo_gerencial'],
             ];
-
         } catch (\Throwable $e) {
             Log::error('Erro na análise gerencial da IA', [
                 'feedback_id' => $feedback->id,
@@ -126,7 +125,6 @@ class FeedbackController extends Controller
             if ($respostaIA === '') {
                 $respostaIA = null;
             }
-
         } catch (\Throwable $e) {
             Log::error('Erro ao gerar resposta para o cliente', [
                 'feedback_id' => $feedback->id,
@@ -153,7 +151,6 @@ class FeedbackController extends Controller
 
             $tipoAtendimento = 'automatico';
             $respostaEnviadaEm = now();
-
         } else {
             $statusAprovacao = 'nao_gerada';
             $statusAtendimento = 'aguardando_administrador';
@@ -294,40 +291,41 @@ class FeedbackController extends Controller
     /**
      * Registrar uma resposta manual do administrador.
      */
-    
-/**
- * Registrar uma resposta manual do administrador.
- */
-public function responder(Request $request, AnaliseChatbot $analise)
-{
-    if ($request->user()->tipo !== 'admin') {
+
+    /**
+     * Registrar uma resposta manual do administrador.
+     */
+    public function responder(Request $request, AnaliseChatbot $analise)
+    {
+        if ($request->user()->tipo !== 'admin') {
+            return response()->json([
+                'message' => 'Apenas administradores podem responder aos feedbacks.'
+            ], 403);
+        }
+
+        if (!in_array($analise->status_aprovacao, ['recusada', 'nao_gerada'])) {
+            return response()->json([
+                'message' => 'A resposta manual não está disponível para esta análise.'
+            ], 422);
+        }
+
+        $dados = $request->validate([
+            'resposta_administrador' => 'required|string|min:3|max:5000'
+        ]);
+
+        $analise->update([
+            'tipo_atendimento' => 'manual',
+            'resposta_administrador' => $dados['resposta_administrador'],
+            'respondido_administrador_em' => now(),
+            'resposta_enviada_em' => now(),
+            'status_atendimento' => 'finalizado'
+        ]);
+
         return response()->json([
-            'message' => 'Apenas administradores podem responder aos feedbacks.'
-        ], 403);
+            'message' => 'Resposta manual registrada com sucesso!',
+            'analise_chatbot' => $analise->fresh()
+        ], 200);
     }
-
-    if (!in_array($analise->status_aprovacao, ['recusada', 'nao_gerada'])) {
-        return response()->json([
-            'message' => 'A resposta manual não está disponível para esta análise.'
-        ], 422);
-    }
-
-    $dados = $request->validate([
-        'resposta_administrador' => 'required|string|min:3|max:5000'
-    ]);
-
-    $analise->update([
-        'resposta_administrador' => $dados['resposta_administrador'],
-        'respondido_administrador_em' => now(),
-        'resposta_enviada_em' => now(),
-        'status_atendimento' => 'finalizado'
-    ]);
-
-    return response()->json([
-        'message' => 'Resposta manual registrada com sucesso!',
-        'analise_chatbot' => $analise->fresh()
-    ], 200);
-}
 
 
     /**
@@ -398,5 +396,52 @@ public function responder(Request $request, AnaliseChatbot $analise)
             'message' => 'Resposta recusada. O administrador poderá escrever uma resposta manual.',
             'analise_chatbot' => $analise->fresh()
         ], 200);
+    }
+
+
+    /**
+     * Listar feedbacks que já receberam respostas.
+     * Somente administradores podem consultar.
+     */
+    public function historicoRespondidos(Request $request)
+    {
+        if ($request->user()->tipo !== 'admin') {
+            return response()->json([
+                'message' => 'Apenas administradores podem consultar o histórico.'
+            ], 403);
+        }
+
+        $feedbacks = Feedback::with([
+            'usuario:id,nome,email',
+            'analisesChatbot' => function ($query) {
+                $query->whereNotNull('resposta_enviada_em')
+                    ->where(function ($subquery) {
+                        $subquery->where(function ($q) {
+                            $q->where('status_aprovacao', 'aprovada')
+                                ->whereNotNull('resposta_gerada');
+                        })->orWhere(function ($q) {
+                            $q->whereNotNull('respondido_administrador_em')
+                                ->whereNotNull('resposta_administrador');
+                        });
+                    })
+                    ->orderByDesc('resposta_enviada_em');
+            }
+        ])
+            ->whereHas('analisesChatbot', function ($query) {
+                $query->whereNotNull('resposta_enviada_em')
+                    ->where(function ($subquery) {
+                        $subquery->where(function ($q) {
+                            $q->where('status_aprovacao', 'aprovada')
+                                ->whereNotNull('resposta_gerada');
+                        })->orWhere(function ($q) {
+                            $q->whereNotNull('respondido_administrador_em')
+                                ->whereNotNull('resposta_administrador');
+                        });
+                    });
+            })
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json($feedbacks, 200);
     }
 }
